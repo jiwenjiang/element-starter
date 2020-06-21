@@ -1,19 +1,30 @@
 <template>
   <div id="app">
+    <!-- :expand-row-keys="currentExpend" -->
     <!--        <div style="height: 800px"></div>-->
     <el-form ref="form" :model="form" label-width="80px" :rules="rules">
       <el-form-item label-width="0" prop="rows">
         <el-table
-          :data="form.rows"
+          :data="virtualRows"
+          id="table"
           style="width: 100%;margin-bottom: 20px;"
-          row-key="customIndex"
           border
+          row-key="customIndex"
           default-expand-all
           ref="table"
+          max-height="500px"
+          class="vtable"
           @expand-change="calcBottom"
           :tree-props="{children: 'children'}"
         >
-          <el-table-column prop="customIndex" label="序号" sortable width="180"></el-table-column>
+          <el-table-column
+            prop="customIndex"
+            fixed
+            label="序号"
+            sortable
+            width="180"
+            v-slot="{$index, row}"
+          >{{row.customIndex}}</el-table-column>
           <el-table-column prop="date" label="日期" sortable width="180"></el-table-column>
           <el-table-column prop="name" label="姓名" sortable width="180">
             <template v-slot="{$index, row}">
@@ -29,7 +40,7 @@
           </el-table-column>
           <el-table-column prop="address" label="地址">
             <template v-slot="{$index, row}">
-              {{`rows${getPathByKey(row.customIndex,"customIndex",form.rows)}.name`}}
+              <!-- {{`rows${getPathByKey(row.customIndex,"customIndex",form.rows)}.name`}} -->
               <el-form-item
                 label-width="0"
                 :rules="rules.address"
@@ -39,7 +50,31 @@
               </el-form-item>
             </template>
           </el-table-column>
-          <el-table-column prop="address" label="删除">
+          <el-table-column prop="address" label="地址">
+            <template v-slot="{$index, row}">
+              <!-- {{`rows${getPathByKey(row.customIndex,"customIndex",form.rows)}.name`}} -->
+              <el-form-item
+                label-width="0"
+                :rules="rules.address"
+                :prop="`${row.customIndex!=='tempIndex'?`rows.${row.path}.address`:''}`"
+              >
+                <el-input v-model="row.address"></el-input>
+              </el-form-item>
+            </template>
+          </el-table-column>
+          <el-table-column prop="address" label="地址">
+            <template v-slot="{$index, row}">
+              <!-- {{`rows${getPathByKey(row.customIndex,"customIndex",form.rows)}.name`}} -->
+              <el-form-item
+                label-width="0"
+                :rules="rules.address"
+                :prop="`${row.customIndex!=='tempIndex'?`rows.${row.path}.address`:''}`"
+              >
+                <el-input v-model="row.address" type="text"></el-input>
+              </el-form-item>
+            </template>
+          </el-table-column>
+          <el-table-column prop="address" label="删除" width="200px" fixed="right">
             <template slot-scope="scope">
               <el-button @click="add(form.rows,scope.row.customIndex)">add</el-button>
               <el-button @click="handleDelete(form.rows,scope.row.customIndex)">delete</el-button>
@@ -49,51 +84,38 @@
       </el-form-item>
     </el-form>
     <el-button @click="print">print</el-button>
+    <el-button class="outLogin" icon="el-icon-switch-button" circle type="info"></el-button>
     <div style="height: 500px"></div>
   </div>
 </template>
 
 <script>
+import _ from "lodash";
 export default {
   data() {
     return {
       form: {
         rows: []
       },
-      testData: [
-        {
-          name: "a",
-          children: [
-            { name: "b", children: [{ name: "e" }] },
-            { name: "c", children: [{ name: "f" }] },
-            { name: "d", children: [{ name: "g" }] }
-          ]
-        },
-        {
-          name: "a2",
-          children: [
-            { name: "b2", children: [{ name: "e2" }] },
-            { name: "c2", children: [{ name: "f2" }] },
-            { name: "d2", children: [{ name: "g2" }] }
-          ]
-        }
-      ],
       rules: {
         name: [{ required: true, message: "请输入名称", trigger: "blur" }],
         address: [{ required: true, message: "请输入地址", trigger: "blur" }]
       },
-      positionType: true
+      positionType: true,
+      startIndex: 0,
+      viewRows: [],
+      virtualRows: [],
+      scrollTop: 0,
+      currentExpend: ["1"]
     };
   },
   methods: {
     print() {
-      // this.setIndex(this.form.rows)
-      // this.findPar(this.form.rows, "2")
-      // console.log(677, this.getPathByKey("3.2.2", "customIndex", this.form.rows))
-      console.log(this.form.rows);
-      this.$refs.form.validate((valid, err) => {
-        console.log("valid", valid, err);
-      });
+      // console.log(this.form.rows);
+      // this.$refs.form.validate((valid, err) => {
+      //   console.log("valid", valid, err);
+      // });
+      console.log(this.$refs);
     },
     handleDelete(arr, r) {
       for (let i = 0; i < arr.length; i++) {
@@ -122,10 +144,12 @@ export default {
     setIndex(data) {
       let queue = [...data];
       let loop = 0;
+      this.num = 0;
       while (queue.length > 0) {
         loop++;
         [...queue].forEach((child, i) => {
           queue.shift();
+          this.num++;
           if (loop == 1) {
             child.customIndex = i + 1 + "";
             child.currentIndex = i;
@@ -143,32 +167,12 @@ export default {
           } else {
             child.dataType = 2;
           }
+          child.expend = child.expend || true;
         });
       }
-    },
-    findPar(arr1, id) {
-      var temp = [];
-      // var tempParent = {}
-      var forFn = function(arr, id) {
-        for (var i = 0; i < arr.length; i++) {
-          var item = arr[i];
-          // debugger;
-          if (item.customIndex === id) {
-            temp.push(item);
-            // debugger;
-            forFn(arr1, item.pid);
-            break;
-          } else {
-            if (item.children) {
-              // tempParent = item
-              forFn(item.children, id);
-            }
-          }
-        }
-      };
-      forFn(arr1, id);
-      console.log("tt", temp);
-      return temp;
+      this.$nextTick(() => {
+        this.calcList();
+      });
     },
     getPathByKey(value, key, arr) {
       let temppath = [];
@@ -209,85 +213,126 @@ export default {
         return realPath;
       }
     },
-    calcBottom() {
+    calcBottom(e) {
+      console.log(e, this.currentExpend);
+
+      return;
       this.$nextTick(() => {
         let obj = this.$refs.table.$el;
         var top = obj.getBoundingClientRect().top; //元素顶知端到可见区域道顶端的距离专
         var bottom = obj.getBoundingClientRect().bottom; //元素顶知端到可见区域道顶端的距离专
         var se = document.documentElement.clientHeight; //浏览器可见区域高度。属
-        console.log("top", top);
-        console.log("cli", se);
-        console.log("bottom", bottom);
         if (top <= se - 50 && bottom >= se) {
           this.positionType = false; //fix
         } else {
           this.positionType = true;
         }
       });
+    },
+    calcList(scrollTop = this.scrollTop) {
+      console.time("js 运行时间：");
+
+      this.startIndex = Math.floor(scrollTop / 65);
+      this.virtualRows = this.form.rows.slice(
+        this.startIndex,
+        this.startIndex + 10
+      );
+      let height = this.num * 65;
+      let mainTable = this.$refs.table.$el.getElementsByClassName(
+        "el-table__body"
+      );
+
+      Array.from(mainTable).forEach(v => {
+        v.style.height = height + "px";
+        if (this.startIndex + 10 >= this.num) {
+          v.style.paddingTop = scrollTop - 65 + "px";
+          v.style.paddingBottom = 0;
+        } else {
+          v.style.paddingTop = scrollTop + "px";
+          v.style.paddingBottom = height - 10 * 65 - scrollTop + "px";
+        }
+      });
+      this.$nextTick(() => {
+        console.timeEnd("js 运行时间：");
+      });
     }
   },
   mounted() {
+    console.time("render300条时间：");
+    this.form.rows = new Array(300).fill(0).map((v, i) => ({
+      name: i
+    }));
     this.form.rows = [
-      {
-        id: "1",
-        date: "2016-05-02",
-        name: "王小虎1",
-        address: "上海市普陀区金沙江路 1518 弄",
-        customIndex: "1",
-        children: [
-          {
-            name: "233",
-            customIndex: "1.1",
-            children: [{ name: "9", customIndex: "1.1.1" }]
-          },
-          {
-            name: "7771",
-            customIndex: "1.2",
-            children: [
-              { name: "9", customIndex: "1.2.1" },
-              {
-                name: "9",
-                customIndex: "1.2.2"
-              }
-            ]
-          }
-        ]
-      },
-      {
-        id: "2",
-        date: "2016-05-04",
-        name: "王小虎2",
-        address: "上海市普陀区金沙江路 1517 弄",
-        customIndex: "2",
-        children: []
-      }
+      ...[
+        {
+          id: "1",
+          date: "2016-05-02",
+          name: "王小虎1",
+          address: "上海市普陀区金沙江路 1518 弄",
+          customIndex: "1",
+          children: [
+            {
+              name: "233",
+              customIndex: "1.1",
+              children: [{ name: "9", customIndex: "1.1.1" }]
+            },
+            {
+              name: "7771",
+              customIndex: "1.2",
+              children: [
+                { name: "9", customIndex: "1.2.1" },
+                {
+                  name: "9",
+                  customIndex: "1.2.2"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          id: "2",
+          date: "2016-05-04",
+          name: "王小虎2",
+          address: "上海市普陀区金沙江路 1517 弄",
+          customIndex: "2",
+          children: []
+        }
+      ],
+      ...this.form.rows
     ];
+    // this.calcList(this.form.rows);
     this.setIndex(this.form.rows);
-    console.log(444, this.form.rows);
-    // console.log(233, this.$refs.table, window)
-    // this.$nextTick(() => {
-    //     this.calcBottom()
-    //     window.onscroll = () => {
-    //         console.log("trigger")
-    //         this.calcBottom()
-    //     }
-    // })
+    this.$nextTick(() => {
+      this.debounceFn = _.debounce(() => {
+        this.scrollTop = this.$refs.table.bodyWrapper.scrollTop;
+        // this.calcList(this.scrollTop);
+        // console.log(88888888888, this.scrollTop);
+      }, 100);
+      this.$refs.table.bodyWrapper.addEventListener("scroll", this.debounceFn);
+    });
+    this.$nextTick(() => {
+      console.timeEnd("render300条时间：");
+    });
   },
   watch: {
-    "form.rows": {
-      handler(v) {
-        this.setIndex(v);
-        this.$nextTick(() => {
-          // this.calcBottom()
-        });
-      },
-      deep: true
+    scrollTop(top) {
+      // return;
+      this.calcList(top);
     }
+    // "form.rows": {
+    //   handler(v) {
+    //     this.setIndex(v);
+    //     this.$nextTick(() => {
+    //       // this.calcBottom()
+    //     });
+    //   },
+    //   deep: true
+    // }
   }
 };
 </script>
 
-<style>
+<style scoped>
 #app {
   font-family: Helvetica, sans-serif;
   text-align: center;
@@ -310,5 +355,17 @@ export default {
   border: 1px solid red;
   position: fixed;
   bottom: 0;
+}
+.outLogin {
+  width: 36px;
+  height: 36px;
+  float: right;
+  margin-top: 15px;
+  margin-left: 10px;
+}
+</style>
+
+<style>
+.vtable .el-table__body tbody {
 }
 </style>

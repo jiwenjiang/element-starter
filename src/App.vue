@@ -10,11 +10,11 @@
           style="width: 100%;margin-bottom: 20px;"
           border
           row-key="customIndex"
-          default-expand-all
+          :expand-row-keys="expendArrs"
           ref="table"
           max-height="500px"
           class="vtable"
-          @expand-change="calcBottom"
+          @expand-change="expendRow"
           :tree-props="{children: 'children'}"
         >
           <el-table-column
@@ -24,7 +24,13 @@
             sortable
             width="180"
             v-slot="{$index, row}"
-          >{{row.customIndex}}</el-table-column>
+          >
+            <span class="expanded-icon-box">
+              <i class="expanded-icon" v-if="row.hasChild" @click="expendRow(row,true)">></i>
+              {{row.customIndex}}
+            </span>
+          </el-table-column>
+
           <el-table-column prop="date" label="日期" sortable width="180"></el-table-column>
           <el-table-column prop="name" label="姓名" sortable width="180">
             <template v-slot="{$index, row}">
@@ -103,10 +109,11 @@ export default {
       },
       positionType: true,
       startIndex: 0,
-      viewRows: [],
       virtualRows: [],
       scrollTop: 0,
-      currentExpend: ["1"]
+      expendArrs: [],
+      listLen: 0,
+      startIndex: 0
     };
   },
   methods: {
@@ -145,6 +152,8 @@ export default {
       let queue = [...data];
       let loop = 0;
       this.num = 0;
+      this.expendArrs = [];
+      this.listLen = 0;
       while (queue.length > 0) {
         loop++;
         [...queue].forEach((child, i) => {
@@ -154,6 +163,7 @@ export default {
             child.customIndex = i + 1 + "";
             child.currentIndex = i;
             child.path = i;
+            child.pid = "";
           }
           if (child.children && child.children.length > 0) {
             child.dataType = 1;
@@ -162,17 +172,19 @@ export default {
               child.children[ci].customIndex =
                 child.customIndex + "." + (ci + 1);
               child.children[ci].path = child.path + ".children." + ci;
+              child.children[ci].pid = child.customIndex;
             }
             queue.push(...child.children);
           } else {
             child.dataType = 2;
           }
-          child.expend = child.expend || true;
+          child.expended = child.expended || "true";
+          if (child.expended === "true") {
+            this.expendArrs.push(child.customIndex);
+          }
         });
+        // console.log(this.expendArrs);
       }
-      this.$nextTick(() => {
-        this.calcList();
-      });
     },
     getPathByKey(value, key, arr) {
       let temppath = [];
@@ -229,14 +241,49 @@ export default {
         }
       });
     },
+    clacTree() {
+      let count = 0;
+      this.virtualRows = [];
+      this.listLen = 0;
+      const fn = arr => {
+        for (let i = 0; i < arr.length; i++) {
+          count++;
+          this.listLen++;
+          if (count >= this.startIndex && count <= this.startIndex + 10) {
+            this.combineArr(_.cloneDeep(arr[i]));
+          }
+          arr[i].children && arr[i].expended === "true" && fn(arr[i].children);
+        }
+      };
+      fn(this.form.rows);
+    },
+    combineArr(node) {
+      let flag = false;
+      node.children = [];
+      const fn = arr => {
+        arr.forEach(v => {
+          if (node.pid === v.customIndex) {
+            v.children.push(node);
+            flag = true;
+          }
+          v.children && fn(v.children);
+        });
+      };
+      fn(this.virtualRows);
+      if (!flag) {
+        this.virtualRows.push(node);
+      }
+    },
     calcList(scrollTop = this.scrollTop) {
       console.time("js 运行时间：");
 
       this.startIndex = Math.floor(scrollTop / 65);
-      this.virtualRows = this.form.rows.slice(
-        this.startIndex,
-        this.startIndex + 10
-      );
+      // this.virtualRows = this.form.rows.slice(
+      //   this.startIndex,
+      //   this.startIndex + 10
+      // );
+      this.clacTree();
+      // console.log(this.virtualRows);
       let height = this.num * 65;
       let mainTable = this.$refs.table.$el.getElementsByClassName(
         "el-table__body"
@@ -255,12 +302,40 @@ export default {
       this.$nextTick(() => {
         console.timeEnd("js 运行时间：");
       });
+    },
+    expendRow(rows, expended) {
+      // const
+      this.DFS_Array(this.form.rows, v => {
+        if (v.customIndex == rows.customIndex) {
+          v.expended = String(expended);
+          v.hasChild =
+            v.expended === "false" && v.children.length > 0 ? true : false;
+          console.log(v);
+        }
+      });
+      if (!expended) {
+        this.expendArrs = this.expendArrs.filter(v => v !== rows.customIndex);
+      } else {
+        this.expendArrs.push(rows.customIndex);
+      }
+      console.log(this.expendArrs);
+      // this.calcBottom();
+      this.calcList(this.scrollTop);
+    },
+    DFS_Array(arr, fn) {
+      for (let i = 0; i < arr.length; i++) {
+        fn(arr[i]);
+        if (arr[i].children && arr[i].children.length > 0) {
+          this.DFS_Array(arr[i].children, fn);
+        }
+      }
     }
   },
   mounted() {
     console.time("render300条时间：");
     this.form.rows = new Array(300).fill(0).map((v, i) => ({
-      name: i
+      name: i,
+      children: []
     }));
     this.form.rows = [
       ...[
@@ -302,11 +377,10 @@ export default {
     ];
     // this.calcList(this.form.rows);
     this.setIndex(this.form.rows);
+    this.calcList();
     this.$nextTick(() => {
       this.debounceFn = _.debounce(() => {
         this.scrollTop = this.$refs.table.bodyWrapper.scrollTop;
-        // this.calcList(this.scrollTop);
-        // console.log(88888888888, this.scrollTop);
       }, 100);
       this.$refs.table.bodyWrapper.addEventListener("scroll", this.debounceFn);
     });
@@ -362,6 +436,14 @@ export default {
   float: right;
   margin-top: 15px;
   margin-left: 10px;
+}
+.expanded-icon-box {
+  position: relative;
+}
+.expanded-icon-box .expanded-icon {
+  position: absolute;
+  cursor: pointer;
+  left: -12px;
 }
 </style>
 

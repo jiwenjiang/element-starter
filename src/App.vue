@@ -310,7 +310,6 @@ export default {
           v.expended = String(expended);
           v.hasChild =
             v.expended === "false" && v.children.length > 0 ? true : false;
-          console.log(v);
         }
       });
       if (!expended) {
@@ -318,8 +317,6 @@ export default {
       } else {
         this.expendArrs.push(rows.customIndex);
       }
-      console.log(this.expendArrs);
-      // this.calcBottom();
       this.calcList(this.scrollTop);
     },
     DFS_Array(arr, fn) {

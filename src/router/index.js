@@ -1,10 +1,7 @@
-import Vue from "vue";
 import VueRouter from "vue-router";
 import Table from "../views/table.vue";
 
-Vue.use(VueRouter);
-
-const routes = [
+export const routes = [
   {
     path: "/",
     redirect: "table",
@@ -14,14 +11,18 @@ const routes = [
     name: "table",
     component: Table,
   },
-  // {
-  //   path: '/about',
-  //   name: 'about',
-  //   // route level code-splitting
-  //   // this generates a separate chunk (about.[hash].js) for this route
-  //   // which is lazy-loaded when the route is visited.
-  //   component: () => import(/* webpackChunkName: "about" */ '../views/About.vue')
-  // }
+  {
+    path: "/embed-route",
+    name: "embedded",
+    component: () =>
+      import(/* webpackChunkName: "embed" */ "../views/embed.vue"),
+  },
+  {
+    path: "/abstract-route",
+    name: "abstract",
+    component: () =>
+      import(/* webpackChunkName: "abstract" */ "../views/abstract.vue"),
+  },
 ];
 
 const router = new VueRouter({
